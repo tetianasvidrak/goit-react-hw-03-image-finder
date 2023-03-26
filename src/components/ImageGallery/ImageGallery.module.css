@@ -1,0 +1,13 @@
+.gallery {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+}
+
+.error-text {
+    font-size: 30px;
+    font-weight: bold;
+    color: rgb(156, 155, 155);
+}
