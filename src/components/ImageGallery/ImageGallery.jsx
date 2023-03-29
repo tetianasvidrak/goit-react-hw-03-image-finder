@@ -1,10 +1,10 @@
 import React from 'react';
 import css from './ImageGallery.module.css';
 import Loader from '../Loader';
-import ImageGalleryItem from '../ImageGalleryItem';
+import ImageGalleryItem from './ImageGalleryItem';
 import Button from '../Button';
+import { getImages } from 'services/api';
 
-const API_KEY = '33501552-afbd1499da91adc0272ece80b';
 const PER_PAGE = 12;
 
 class ImageGallery extends React.Component {
@@ -13,7 +13,7 @@ class ImageGallery extends React.Component {
     error: null,
     status: 'idle',
     page: 1,
-    lastPage: false,
+    buttonVisible: false,
   };
 
   onLoadMoreHandler = async () => {
@@ -21,18 +21,17 @@ class ImageGallery extends React.Component {
       return { page: prevState.page + 1 };
     });
 
-    fetch(
-      `https://pixabay.com/api/?key=${API_KEY}&q=${this.props.imageName}&per_page=${PER_PAGE}&page=${this.state.page}`
-    )
-      .then(res => res.json())
-      .then(images =>
-        this.setState(prevState => ({
-          images: [...prevState.images, ...images.hits],
-          status: 'resolved',
-          lastPage: images.totalHits <= PER_PAGE * this.state.page,
-        }))
-      )
-      .catch(error => this.setState({ error, status: 'rejected' }));
+    try {
+      const images = await getImages(this.props.imageName, this.state.page);
+      this.setState(prevState => ({
+        images: [...prevState.images, ...images.hits],
+        status: 'resolved',
+        buttonVisible:
+          images.hits.length && images.totalHits >= PER_PAGE * this.state.page,
+      }));
+    } catch (error) {
+      this.setState({ error, status: 'rejected' });
+    }
   };
 
   async componentDidUpdate(prevProps, prevState) {
@@ -41,58 +40,51 @@ class ImageGallery extends React.Component {
 
     if (prevName !== nextName) {
       await this.setState({ status: 'pending', page: 1 });
-      fetch(
-        `https://pixabay.com/api/?key=${API_KEY}&q=${nextName}&per_page=${PER_PAGE}&page=${this.state.page}`
-      )
-        .then(res => res.json())
-        .then(images =>
-          this.setState({
-            images: images.hits,
-            status: 'resolved',
-            lastPage: images.totalHits <= PER_PAGE * this.state.page,
-          })
-        )
-        .catch(error => this.setState({ error, status: 'rejected' }));
+      try {
+        const images = await getImages(this.props.imageName, this.state.page);
+        this.setState(prevState => ({
+          images: images.hits,
+          status: 'resolved',
+          buttonVisible:
+            images.hits.length &&
+            images.totalHits >= PER_PAGE * this.state.page,
+        }));
+      } catch (error) {
+        this.setState({ error, status: 'rejected' });
+      }
     }
   }
 
   render() {
     const { images, status } = this.state;
 
-    if (status === 'idle') {
-      return <div>Enter image name...</div>;
-    }
-
-    if (status === 'pending') {
-      return <Loader />;
-    }
-
-    if (status === 'rejected') {
-      return (
-        <p className={css['error-text']}>
-          There are no {this.props.imageName} images
-        </p>
-      );
-    }
-
-    if (status === 'resolved') {
-      return (
-        <>
-          <ul className={css.gallery}>
-            {images.map(image => (
-              <ImageGalleryItem
-                key={image.id}
-                smallImage={image.webformatURL}
-                largeImage={image.largeImageURL}
-              />
-            ))}
-          </ul>
-          {this.state.images.length && !this.state.lastPage ? (
-            <Button onClickHandler={this.onLoadMoreHandler} />
-          ) : undefined}
-        </>
-      );
-    }
+    return (
+      <>
+        {status === 'idle' && <div>Enter image name...</div>}
+        {status === 'pending' && <Loader />}{' '}
+        {status === 'rejected' && (
+          <p className={css['error-text']}>
+            There are no {this.props.imageName} images
+          </p>
+        )}
+        {status === 'resolved' && (
+          <>
+            <ul className={css.gallery}>
+              {images.map(image => (
+                <ImageGalleryItem
+                  key={image.id}
+                  smallImage={image.webformatURL}
+                  largeImage={image.largeImageURL}
+                />
+              ))}
+            </ul>
+            {this.state.buttonVisible && (
+              <Button onClickHandler={this.onLoadMoreHandler} />
+            )}
+          </>
+        )}
+      </>
+    );
   }
 }
 
